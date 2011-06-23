@@ -1,0 +1,10 @@
+<RCC>
+  <qresource>
+    <file>images/icon.png</file>
+    <file>images/sea.png</file>
+    <file>images/sea_s.png</file>
+    <file>images/sea_t.png</file>
+    <file>images/ship.png</file>
+    <file>images/ship_s.png</file>
+  </qresource>
+</RCC>

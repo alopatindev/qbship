@@ -1,0 +1,6 @@
+It's a simple network game.
+
+To compile and run type:
+    qmake && make && ./qbship
+
+This game is GPLv3'ed, read COPYING for details.
