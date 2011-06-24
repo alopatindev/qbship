@@ -40,11 +40,15 @@ class MainWindow : public QMainWindow, Ui_MainWindow
 
     enum Running {Disconnected, Client, Server} running;
     bool myTurn;
+    int turn;
+    bool ready, enemyReady;
 
     void setMode(Running mode);
     void loadSettings();
     void saveSettings() const;
     void getMessage(QTcpSocket *sock);
+    void checkBothReady();
+    void setMyTurn(bool my);
 
 public:
     MainWindow(QWidget *parent = 0);
@@ -64,8 +68,9 @@ public slots:
     void processClient();
     void processClientData();
     void processClientData2();
-    void sendMessage(const DataMap & data);
+    void sendMessage(const QString & command, const DataMap & data = DataMap());
     void clientDisconnected();
+    void setReady(bool ready);
 
 protected:
     void closeEvent(QCloseEvent *event);

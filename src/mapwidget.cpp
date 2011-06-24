@@ -209,12 +209,14 @@ void MapWidget::placeShip(int x, int y)
     static int t = 0;
     if (shipSize == 0) {
         setState(View);
-        data["info"] = tr("ready to play");
+        data["text"] = tr("ready to play");
+        data["ready"] = true;
         t = 0;
+        emit ready(true);
     } else {
-        data["info"] = tr("placing the %2 ship").arg(++t);
+        data["text"] = tr("placing the %2 ship").arg(++t);
     }
-    emit eventOccured(data);
+    emit eventOccured("status", data);
 }
 
 void MapWidget::mouseMoveEvent(QMouseEvent *event)

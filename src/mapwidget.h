@@ -50,7 +50,8 @@ public:
     void clear();
 
 signals:
-    void eventOccured(const DataMap &);
+    void eventOccured(const QString &, const DataMap &);
+    void ready(bool);
 
 protected:
     void paintEvent(QPaintEvent *);
