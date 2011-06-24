@@ -7,7 +7,7 @@
 #include <QTcpSocket>
 #include <QMap>
 #include "ui_mainwindow.h"
-#include "xmlserver.h"
+#include "myserver.h"
 #include "singleton.h"
 
 class QMainWindow;
@@ -15,7 +15,9 @@ class Ui_MainWindow;
 class QString;
 class QStringList;
 class QTcpSocket;
-class XMLServer;
+class MyServer;
+
+//typedef QMap<QString, QString> DataMap;
 
 enum FirstPlayer {RandomPlayer, YouPlayer, OpponentPlayer};
 
@@ -33,7 +35,7 @@ class MainWindow : public QMainWindow, Ui_MainWindow
     Q_OBJECT
 
     GameSettings settings;
-    XMLServer server;
+    MyServer server;
     QTcpSocket client, *tcpServerConnection;
 
     enum Running {Disconnected, Client, Server} running;
@@ -62,7 +64,8 @@ public slots:
     void processClient();
     void processClientData();
     void processClientData2();
-    void sendMessage(const QString & text);
+    void sendMessage(const DataMap & data);
+    void clientDisconnected();
 
 protected:
     void closeEvent(QCloseEvent *event);

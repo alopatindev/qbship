@@ -1,6 +1,6 @@
 #include "mapwidget.h"
+#include "mainwindow.h"
 #include <QPainter>
-#include <iostream>
 
 class MapWidget;
 class QPainter;
@@ -204,17 +204,17 @@ void MapWidget::placeShip(int x, int y)
         placedTimes = 0;
     }
 
+    DataMap data;
+    data["user"] = Environ::instance()["user"];
     static int t = 0;
     if (shipSize == 0) {
         setState(View);
-        emit eventOccured(tr("%1 is ready to play")
-            .arg(Environ::instance()["user"]));
+        data["info"] = tr("ready to play");
         t = 0;
     } else {
-        emit eventOccured(tr("%1 places the %2 ship")
-            .arg(Environ::instance()["user"])
-            .arg(++t));
+        data["info"] = tr("placing the %2 ship").arg(++t);
     }
+    emit eventOccured(data);
 }
 
 void MapWidget::mouseMoveEvent(QMouseEvent *event)

@@ -17,7 +17,7 @@ class MapWidget;
 class QProcessEnvironment;
 
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent)
+    : QMainWindow(parent), tcpServerConnection(0)
 {
     setupUi(this);
     // FIXME: magic numbers!
@@ -34,8 +34,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(&client, SIGNAL(disconnected()), this, SLOT(disconnect()));
     connect(&client, SIGNAL(error(QAbstractSocket::SocketError)),
             this, SLOT(connectionError(QAbstractSocket::SocketError)));
-    connect(myMap, SIGNAL(eventOccured(const QString &)),
-            this, SLOT(sendMessage(const QString &)));
+    connect(myMap, SIGNAL(eventOccured(const DataMap &)),
+            this, SLOT(sendMessage(const DataMap &)));
 
     connect(&client, SIGNAL(readyRead()),
             this, SLOT(processClientData2()));
@@ -177,14 +177,8 @@ void MainWindow::connectionEstablished()
 {
     setMode(Client);
     myMap->setState(Edit); enemyMap->setState(View);
-    updateStatus(tr("Connection established. Let's play!"));
+    updateStatus(tr("Connected to server. Let's play!"));
     myMap->setDisabled(false); enemyMap->setDisabled(false);
-
-    QByteArray block;
-    QDataStream out(&block, QIODevice::WriteOnly);
-    out.setVersion(QDataStream::Qt_4_0);
-    out << QString("fucking lold");
-    client.write(block);
 }
 
 void MainWindow::setMode(Running mode)
@@ -241,8 +235,15 @@ void MainWindow::processClient()
     tcpServerConnection = server.nextPendingConnection();
     connect(tcpServerConnection, SIGNAL(readyRead()),
             this, SLOT(processClientData()));
-    connect(tcpServerConnection, SIGNAL(disconnected()), // TODO: update statusbar
-            tcpServerConnection, SLOT(deleteLater()));
+    connect(tcpServerConnection, SIGNAL(disconnected()),
+            this, SLOT(clientDisconnected()));
+}
+
+void MainWindow::clientDisconnected()
+{
+    tcpServerConnection->deleteLater();
+    tcpServerConnection = 0;
+    updateStatus(tr("Client disconnected!"));
 }
 
 void MainWindow::processClientData()
@@ -262,21 +263,26 @@ void MainWindow::getMessage(QTcpSocket *sock)
     qDebug("reading %d bytes", size);
 
     QDataStream in(&block, QIODevice::ReadOnly);
-    in.setVersion(QDataStream::Qt_4_0);
-    QString text;
-    in >> text;
-    // TODO: process input XML data here
-    qDebug("ololo: %s", text.toStdString().c_str());
+    in.setVersion(QDataStream::Qt_4_6);
+    DataMap data;
+    in >> data;
+    // TODO: process input data here
+    //qDebug("ololo: %s", text.toStdString().c_str());
+    DataMap::const_iterator i;
+    for (i = data.constBegin(); i != data.constEnd(); ++i)
+        qDebug("[%s]: '%s'", i.key().toStdString().c_str(),
+                             i.value().toStdString().c_str());
 }
 
-void MainWindow::sendMessage(const QString & text)
+void MainWindow::sendMessage(const DataMap & data)
 {
     QByteArray block;
     QDataStream out(&block, QIODevice::WriteOnly);
-    out.setVersion(QDataStream::Qt_4_0);
-    out << text;
+    out.setVersion(QDataStream::Qt_4_6);
+    out << data;
+
     if (running == Client)
         client.write(block);
-    else if (running == Server)
+    else if (running == Server && tcpServerConnection)
         tcpServerConnection->write(block);
 }

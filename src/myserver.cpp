@@ -1,20 +1,20 @@
-#include "xmlserver.h"
+#include "myserver.h"
 #include <QTcpSocket>
 
-class XMLServer;
+class MyServer;
 class QTcpSocket;
 
-XMLServer::XMLServer(QObject *parent)
+MyServer::MyServer(QObject *parent)
     : QTcpServer(parent)
 {
     setMaxPendingConnections(1);
 }
 
-XMLServer::~XMLServer()
+MyServer::~MyServer()
 {
 }
 
-void XMLServer::start(int port)
+void MyServer::start(int port)
 {
     close();
     if (!listen(QHostAddress::Any, port))

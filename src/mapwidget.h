@@ -10,6 +10,8 @@
 #include <QMouseEvent>
 #include "singleton.h"
 
+typedef QMap<QString, QString> DataMap;
+
 class QWidget;
 class QImage;
 class QString;
@@ -48,7 +50,7 @@ public:
     void clear();
 
 signals:
-    void eventOccured(const QString &);
+    void eventOccured(const DataMap &);
 
 protected:
     void paintEvent(QPaintEvent *);

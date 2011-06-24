@@ -1,17 +1,17 @@
-#ifndef XMLSERVER_H
-#define XMLSERVER_H
+#ifndef SERVER_H
+#define SERVER_H
 
 #include <QTcpServer>
 
 class QTcpServer;
 
-class XMLServer : public QTcpServer
+class MyServer : public QTcpServer
 {
     Q_OBJECT
 
 public:
-    XMLServer(QObject *parent = 0);
-    ~XMLServer();
+    MyServer(QObject *parent = 0);
+    ~MyServer();
     void start(int port);
 
 signals:
