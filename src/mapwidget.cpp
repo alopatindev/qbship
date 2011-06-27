@@ -237,6 +237,13 @@ void MapWidget::mouseReleaseEvent(QMouseEvent *event)
             if (possiblePlaceShip(event->x(), event->y()))
                 placeShip(event->x(), event->y());
         }
+    } else if (state == Turn) {
+        if (event->button() == Qt::LeftButton) {
+            int i = event->y() / CELL_WIDTH;
+            int j = event->x() / CELL_WIDTH;
+            if (i >= 0 && j >= 0 && i < MAX_CELLS && j < MAX_CELLS)
+                emit attack(i, j);
+        }
     }
 }
 
@@ -244,4 +251,31 @@ inline bool MapWidget::mouseInCell(int x, int y)
 {
     return mouse.x() >= x && mouse.x() < x+CELL_WIDTH && \
            mouse.y() >= y && mouse.y() < y+CELL_WIDTH;
+}
+
+void MapWidget::strike(int i, int j, bool struck)
+{
+    cells[i][j] = struck ? ShipStriked : WaterStriked;
+    update();
+}
+
+bool MapWidget::isStruck(int i, int j)
+{
+    bool b = false;
+    if (cells[i][j] == Ship) {
+        b = true;
+    } else if (cells[i][j] == Water) {
+        b = false;
+    }
+    return b;
+}
+
+bool MapWidget::isKilled(int i, int j, DataMap & data)
+{
+    //TODO
+    /*Qt::Orientation rotation = Qt::Horizontal;
+    if (i > 0) {
+        if (cells[i-1][j] == ShipStriked)
+    }*/
+    return false;
 }

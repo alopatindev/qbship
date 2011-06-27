@@ -7,15 +7,15 @@ TARGET =
 DEPENDPATH += . src
 INCLUDEPATH += . src
 CONFIG += debug
-QT += xml network
+QT += network
 
 # Input
-HEADERS += src/connectdialog.h src/createdialog.h src/mainwindow.h src/singleton.h src/mapwidget.h src/xmlserver.h
+HEADERS += src/connectdialog.h src/createdialog.h src/mainwindow.h src/singleton.h src/mapwidget.h src/myserver.h
 FORMS += src/connectdialog.ui src/createdialog.ui src/mainwindow.ui
 SOURCES += src/connectdialog.cpp \
            src/createdialog.cpp \
            src/main.cpp \
            src/mainwindow.cpp \
            src/mapwidget.cpp \
-           src/xmlserver.cpp
+           src/myserver.cpp
 RESOURCES += resources.qrc

@@ -8,9 +8,10 @@
 #include <QPoint>
 #include <QPair>
 #include <QMouseEvent>
+#include <QVariant>
 #include "singleton.h"
 
-typedef QMap<QString, QString> DataMap;
+typedef QMap<QString, QVariant> DataMap;
 
 class QWidget;
 class QImage;
@@ -43,15 +44,22 @@ class MapWidget : public QWidget
     bool possiblePlaceShip(int x, int y);
     void setPossibleShip(int x, int y);
     QPair<int, int> possibleShip;
+
 public:
     MapWidget(QWidget *parent = 0);
     ~MapWidget();
     void setState(MapState state);
     void clear();
+    bool isKilled(int i, int j, DataMap & data);
+
+public slots:
+    void strike(int i, int j, bool);
+    bool isStruck(int i, int j);
 
 signals:
     void eventOccured(const QString &, const DataMap &);
     void ready(bool);
+    void attack(int, int);
 
 protected:
     void paintEvent(QPaintEvent *);

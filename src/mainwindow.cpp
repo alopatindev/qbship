@@ -6,6 +6,7 @@
 #include <QCloseEvent>
 #include <QSettings>
 #include <QProcessEnvironment>
+#include <QTimer>
 
 class MainWindow;
 class CreateDialog;
@@ -15,9 +16,10 @@ class QCloseEvent;
 class QSettings;
 class MapWidget;
 class QProcessEnvironment;
+class QTimer;
 
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent), tcpServerConnection(0), turn(0),
+    : QMainWindow(parent), tcpServerConnection(0), /*turn(0), myTurn(false),*/
       ready(false), enemyReady(false)
 {
     setupUi(this);
@@ -27,12 +29,11 @@ MainWindow::MainWindow(QWidget *parent)
         QProcessEnvironment::systemEnvironment().value("USER", "Unknown user");
     myUsername->setText(Environ::instance()["user"]);
     setMode(Disconnected);
-    myTurn = false;
     connect(&server, SIGNAL(connectionError(const QString &)),
             this, SLOT(connectionError(const QString &)));
-    connect(&server, SIGNAL(connected()), this, SLOT(connected()));
-    connect(&server, SIGNAL(newConnection()), this, SLOT(processClient()));
-    connect(&client, SIGNAL(connected()), this, SLOT(connectionEstablished()));
+    //connect(&server, SIGNAL(connected()), this, SLOT(serverConnected()));
+    connect(&server, SIGNAL(newConnection()), this, SLOT(clientConnected()));
+    connect(&client, SIGNAL(connected()), this, SLOT(connectedToServer()));
     connect(&client, SIGNAL(disconnected()), this, SLOT(disconnect()));
     connect(&client, SIGNAL(error(QAbstractSocket::SocketError)),
             this, SLOT(connectionError(QAbstractSocket::SocketError)));
@@ -40,9 +41,10 @@ MainWindow::MainWindow(QWidget *parent)
             this, SLOT(sendMessage(const QString &, const DataMap &)));
     connect(myMap, SIGNAL(ready(bool)),
             this, SLOT(setReady(bool)));
+    connect(enemyMap, SIGNAL(attack(int, int)),
+            this, SLOT(attackEnemy(int, int)));
 
-    connect(&client, SIGNAL(readyRead()),
-            this, SLOT(processClientData2()));
+    connect(&client, SIGNAL(readyRead()), this, SLOT(getClientMessage()));
 
     loadSettings();
     myMap->setState(Edit);
@@ -152,10 +154,8 @@ void MainWindow::on_actionDisconnect_triggered()
             QMessageBox::Yes | QMessageBox::No,
             QMessageBox::No
         ) == QMessageBox::Yes
-    ) {
-        setMode(Disconnected);
-        updateStatus(tr("Disconnected"));
-    }
+    )
+        disconnect();
 }
 
 void MainWindow::on_actionAbout_triggered()
@@ -177,13 +177,13 @@ void MainWindow::connectionError(QAbstractSocket::SocketError)
     connectionError(client.errorString());
 }
 
-void MainWindow::connectionEstablished()
+void MainWindow::connectedToServer()
 {
     setMode(Client);
     myMap->setState(Edit); enemyMap->setState(View);
     updateStatus(tr("Connected to server. Let's play!"));
     myMap->setDisabled(false); enemyMap->setDisabled(false);
-    sendMessage("who"); // FIXME: works unstable here
+    sendMessageLater("who", DataMap(), 1500);  // FIXME: works unstable here
 }
 
 void MainWindow::setMode(Running mode)
@@ -202,6 +202,7 @@ void MainWindow::setMode(Running mode)
             myScore->setText("0");
             enemyScore->setText("0");
             ready = false; enemyReady = false;
+            myTurn = false;
             turn = 0;
             break;
         case Client:
@@ -211,25 +212,22 @@ void MainWindow::setMode(Running mode)
             enemyMap->clear();
             enemyMap->setState(View);
             ready = false; enemyReady = false;
+            myTurn = false;
             turn = 0;
             break;
         case Server:
             actionDisconnect->setDisabled(false);
-            if (client.state() == QAbstractSocket::ConnectedState)
-                client.close();
+            //if (client.state() == QAbstractSocket::ConnectedState)
+            //    client.close();
             myMap->clear();
             enemyMap->clear();
             myMap->setDisabled(true); enemyMap->setDisabled(true);
             myMap->setState(Edit); enemyMap->setState(View);
             ready = false; enemyReady = false;
+            myTurn = false;
             turn = 0;
             break;
     }
-}
-
-void MainWindow::connected()
-{
-    updateStatus(tr("Connected"));
 }
 
 void MainWindow::disconnect()
@@ -243,7 +241,7 @@ void MainWindow::updateStatus(const QString & text)
     statusBar()->showMessage(text);
 }
 
-void MainWindow::processClient()
+void MainWindow::clientConnected()
 {
     updateStatus(tr("Client connected! Let's play!"));
     if (!server.hasPendingConnections())
@@ -251,7 +249,7 @@ void MainWindow::processClient()
 
     tcpServerConnection = server.nextPendingConnection();
     connect(tcpServerConnection, SIGNAL(readyRead()),
-            this, SLOT(processClientData()));
+            this, SLOT(getServerMessage()));
     connect(tcpServerConnection, SIGNAL(disconnected()),
             this, SLOT(clientDisconnected()));
     
@@ -267,90 +265,131 @@ void MainWindow::clientDisconnected()
     setMode(Server);
 }
 
-void MainWindow::processClientData()
+void MainWindow::getServerMessage()
 {
     getMessage(tcpServerConnection);
 }
 
-void MainWindow::processClientData2()
+void MainWindow::getClientMessage()
 {
     getMessage(&client);
 }
 
 void MainWindow::getMessage(QTcpSocket *sock)
 {
-    int size = (int)(sock->bytesAvailable());
+    //int size = (int)(sock->bytesAvailable());
+    //qDebug("reading %d bytes", size);
     QByteArray block = sock->readAll();
-    qDebug("reading %d bytes", size);
 
     QDataStream in(&block, QIODevice::ReadOnly);
     in.setVersion(QDataStream::Qt_4_6);
     QString command; DataMap data;
     in >> command;
     in >> data;
-    // TODO: process input data here
     qDebug("{{%s}}", command.toStdString().c_str());
     DataMap::const_iterator i;
     for (i = data.constBegin(); i != data.constEnd(); ++i)
         qDebug("[%s]: '%s'", i.key().toStdString().c_str(),
-                             i.value().toStdString().c_str());
+                             i.value().toString().toStdString().c_str());
+    processCommand(command, data);
+}
 
-    DataMap outData;
-    if (command == "who") {
-        outData["user"] = Environ::instance()["user"];
-        sendMessage("info", outData);
-        return;
-    }
-    if (command == "info") {
+void MainWindow::processCommand(const QString & command, const DataMap & data)
+{
+    qDebug("processing command '%s'", command.toStdString().c_str());
+    DataMap d;
+
+    //FIXME
+    if (running == Client) {
         if (enemyUsername->text().isEmpty())
-            enemyUsername->setText(data["user"]);
+            sendMessage("who");
+    }
+
+    if (command == "turn") {
+        if (running == Client) {
+            if (data["turn"] == "client") {
+                setMyTurn(true);
+            } else {
+                setMyTurn(false);
+                updateStatus("Opponent is thinking now");
+            }
+        }
         return;
     }
-    if (command == "ready") {
-        enemyReady = true;
-        checkBothReady();
+    if (command == "attack") {
+        qDebug("input attack");
+        if (myTurn) {  // cheating?
+            qDebug("CHEATING??");
+            return;
+        }
+        int i = data["i"].toInt();
+        int j = data["j"].toInt();
+        qDebug("input attack coords (%d,%d)", i, j);
+        if (myMap->isStruck(i, j)) {
+            d["i"] = i; d["j"] = j;
+            myMap->strike(i, j, true);
+            if (myMap->isKilled(i, j, d)) {
+                sendMessage("killed", d);
+            } else {
+                sendMessage("hurt", d);
+            }
+        } else {
+            qDebug("WATER!");
+            d["i"] = i; d["j"] = j;
+            myMap->strike(i, j, false);
+            sendMessage("miss", d);
+            setMyTurn(true);
+        }
+        return;
+    }
+    if (command == "miss") {
+        enemyMap->strike(data["i"].toInt(), data["j"].toInt(), false);
+        setMyTurn(false);
+        return;
+    }
+    if (command == "killed") {
+        //TODO
+        qDebug("KILLED!");
+        enemyMap->strike(data["i"].toInt(), data["j"].toInt(), true);
+        setMyTurn(true);
+        return;
+    }
+    if (command == "hurt") {
+        //TODO
+        enemyMap->strike(data["i"].toInt(), data["j"].toInt(), true);
+        setMyTurn(true);
+        return;
+    }
+    if (command == "who") {
+        d["user"] = Environ::instance()["user"];
+        sendMessage("user_info", d);
+        return;
+    }
+    if (command == "user_info") {
+        qDebug("PROCeSSING user_info: %s", data["user"].toString().toStdString().c_str());
+        enemyUsername->setText(data["user"].toString());
         return;
     }
     if (command == "status") {
-        if (enemyUsername->text().isEmpty())  // FIXME: ugly hack
-            enemyUsername->setText(data["user"]);
-        updateStatus(QString("%1: %2").arg(data["user"]).arg(data["text"]));
-        return;
-    }
-    if (command == "turn") {
-        if (running != Server)
-            return;
-        QString answer;
-        switch (settings.firstPlayer) {
-        case RandomPlayer: answer = qrand() % 2 ? "you" : "me"; break;
-        case YouPlayer: answer = "me"; break;
-        case OpponentPlayer: answer = "you"; break;
+        if (data["ready"] == true) {
+            enemyReady = true;
+            checkBothReady();
         }
-        outData["turn"] = answer;
-        sendMessage("wturn", outData);
-        if (answer == "me") {
-            if (turn == 0)
-                myMap->setState(View);
-            setMyTurn(true);
-        }
-        return;
-    }
-    if (command == "wturn") {
-        if (running != Client)
-            return;
-        if (turn == 0)
-            myMap->setState(View);
-        if (data["turn"] == "you") {
-            setMyTurn(true);
-        } else if (data["turn"] == "me") {
-            setMyTurn(false);
-        }
+        updateStatus(QString("%1: %2").arg(data["user"].toString())
+                                      .arg(data["text"].toString()));
         return;
     }
 }
 
 void MainWindow::sendMessage(const QString & command, const DataMap & data)
 {
+    if (command.isEmpty()) {
+        sendMessage(this->command, this->data);
+        return;
+    }
+
+    qDebug(">>> sending message '%s'", command.toStdString().c_str());
+
     QByteArray block;
     QDataStream out(&block, QIODevice::WriteOnly);
     out.setVersion(QDataStream::Qt_4_6);
@@ -362,25 +401,62 @@ void MainWindow::sendMessage(const QString & command, const DataMap & data)
         tcpServerConnection->write(block);
 }
 
+void MainWindow::sendMessageLater(const QString & command,
+                                  const DataMap & data,
+                                  int timeOut)
+{
+    this->command = command;
+    this->data = data;
+    QTimer::singleShot(timeOut, this, SLOT(sendMessage()));
+}
+
 void MainWindow::setMyTurn(bool my)
 {
     updateStatus(tr(my ? "It's your turn!" : "It's enemy's turn."));
     enemyMap->setState(my ? Turn : View);
     myTurn = my;
     turn++;
+
+    /*DataMap d;
+    d["turn"] = running == Server ? "client" : "server";
+    sendMessage("turn", d);*/
 }
 
 void MainWindow::setReady(bool ready)
 {
     this->ready = ready;
-    sendMessage("ready");
     checkBothReady();
+}
+
+bool MainWindow::serversFirstTurn()
+{
+    qDebug("serversFirstTurn() turn=%d", turn);
+    if (turn != 0)
+        return false;
+
+    if (settings.firstPlayer == RandomPlayer)
+        return qrand() % 2;
+    else
+        return settings.firstPlayer == YouPlayer;
 }
 
 void MainWindow::checkBothReady()
 {
-    if (ready && enemyReady) {
-        //if (running == Client)
-            sendMessage("turn");
+    if (ready && enemyReady && running == Server) {
+        bool s = serversFirstTurn();
+        if (!s) {
+            DataMap d; d["turn"] = "client";
+            sendMessage("turn", d);
+        }
+        setMyTurn(s);
     }
+}
+
+void MainWindow::attackEnemy(int i, int j)
+{
+    qDebug("ATTACKING enemy i=%d j=%d", i, j);
+    DataMap d; d["i"] = i; d["j"] = j;
+    sendMessage("attack", d);
+    enemyMap->setState(View);
+    //setMyTurn(false);
 }

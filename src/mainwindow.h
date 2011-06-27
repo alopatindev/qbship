@@ -37,18 +37,20 @@ class MainWindow : public QMainWindow, Ui_MainWindow
     GameSettings settings;
     MyServer server;
     QTcpSocket client, *tcpServerConnection;
+    bool ready, enemyReady, myTurn;
+    int turn;
+    QString command; DataMap data;
+    FirstPlayer firstPlayed;
 
     enum Running {Disconnected, Client, Server} running;
-    bool myTurn;
-    int turn;
-    bool ready, enemyReady;
 
     void setMode(Running mode);
     void loadSettings();
     void saveSettings() const;
-    void getMessage(QTcpSocket *sock);
-    void checkBothReady();
+    void processCommand(const QString & command,
+                        const DataMap & data = DataMap());
     void setMyTurn(bool my);
+    bool serversFirstTurn();
 
 public:
     MainWindow(QWidget *parent = 0);
@@ -61,16 +63,21 @@ public slots:
     void on_actionAbout_triggered();
     void connectionError(const QString & text);
     void connectionError(QAbstractSocket::SocketError);
-    void connectionEstablished();
-    void connected();
-    void disconnect();
-    void updateStatus(const QString & text);
-    void processClient();
-    void processClientData();
-    void processClientData2();
-    void sendMessage(const QString & command, const DataMap & data = DataMap());
+    void clientConnected();
     void clientDisconnected();
+    void connectedToServer();
+    void disconnect();
+    inline void updateStatus(const QString & text);
+    void getMessage(QTcpSocket *sock);
+    void getClientMessage();
+    void getServerMessage();
+    void sendMessage(const QString & command = "",
+                     const DataMap & data = DataMap());
+    void sendMessageLater(const QString & command, const DataMap & data,
+                          int timeOut);
+    void attackEnemy(int i, int j);
     void setReady(bool ready);
+    void checkBothReady();
 
 protected:
     void closeEvent(QCloseEvent *event);
